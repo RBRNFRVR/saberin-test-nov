@@ -20,9 +20,24 @@
             @foreach (var song in songs)
             {
                 <div class="glass p-6 border border-gray-300 rounded-lg text-white transition-transform transform hover:scale-105 hover:shadow-xl cursor-pointer">
+                    @if (song.AlbumCover != null && song.AlbumCover.Length > 0)
+                    {
+                        <div class="mt-4">
+                            <img src="data:image/jpeg;base64,@Convert.ToBase64String(song.AlbumCover)" alt="Album Cover" class="w-full h-auto rounded-lg" />
+                        </div> 
+                    }
+                    else
+                    {
+                        <img src="/question_mark.jpg" alt="Album Cover" class="w-full h-auto rounded-lg" />
+                    }
                     <h3 class="text-xl font-semibold mb-2">@song.Title</h3>
                     <p class="text-md">Artist: <span class="font-light">@song.Artist</span></p>
-
+                    <p class="text-md">Genre: <span class="font-light">@song.Genre</span></p>
+                    @if (!string.IsNullOrEmpty(song.ReleaseDate))
+                    {
+                        <p class="text-md">Release Date: <span class="font-light">@song.ReleaseDate</span></p>
+                    }
+                    
                 </div>
             }
         }

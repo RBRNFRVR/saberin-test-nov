@@ -1,5 +1,8 @@
 ﻿@page "/AddSong"
 @inject HttpClient Http
+@using System.Net.Http.Headers
+@using System.Net.Mime
+@using Microsoft.Extensions.Options
 @using music_manager_starter.Shared
 
 
@@ -11,25 +14,44 @@
 
         <div class="mb-4">
             <label class="block text-gray-200">Title</label>
-            <InputText @bind-Value="newSong.Title" class="mt-1 block w-full p-2 border rounded" />
+            <InputText @bind-Value="newSong.Title" class="mt-1 block w-full p-2 border rounded" placeholder="Ex. Discord" />
         </div>
 
         <div class="mb-4">
             <label class="block text-gray-200">Artist</label>
-            <InputText @bind-Value="newSong.Artist" class="mt-1 block w-full p-2 border rounded" />
+            <InputText @bind-Value="newSong.Artist" class="mt-1 block w-full p-2 border rounded" placeholder="Ex. The Living Tombstone"/>
         </div>
 
         <div class="mb-4">
             <label class="block text-gray-200">Album</label>
-            <InputText @bind-Value="newSong.Album" class="mt-1 block w-full p-2 border rounded" />
+            <InputText @bind-Value="newSong.Album" class="mt-1 block w-full p-2 border rounded" placeholder="Ex. Discord Single" />
         </div>
 
         <div class="mb-4">
             <label class="block text-gray-200">Genre</label>
-            <InputText @bind-Value="newSong.Genre" class="mt-1 block w-full p-2 border rounded" />
+            <InputText @bind-Value="newSong.Genre" class="mt-1 block w-full p-2 border rounded" placeholder="Ex. EDM" />
         </div>
 
-        <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded">Add Song</button>
+        <div class="mb-4">
+            <label class="block text-gray-200">Release Date</label>
+            <InputText @bind-Value="newSong.ReleaseDate"  @onchange="HandleReleaseDateChange" class="mt-1 block w-full p-2 border rounded" placeholder="Ex. 01-21-2012"/>
+        </div>
+        
+        @if (dateError)
+        {
+            <p class="text-green-500">Invalid date format. Please use MM-dd-yyyy</p>
+        }
+
+        <div class="mb-3">
+            <label class="block text-gray-200">Album Cover Upload</label>
+            <InputFile OnChange="HandleImageUpload" />
+        </div>
+        @if (!string.IsNullOrEmpty(uploadMessage))
+        {
+            <p class="mt-1 mb-2 text-green-500">@uploadMessage</p>
+        }
+
+        <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded" disabled="@isSubmitDisabled">Add Song</button>
     </EditForm>
 
     @if (message != null)
@@ -41,14 +63,90 @@
 @code {
     private Song newSong = new Song();
     private string message;
+    private string uploadMessage;
+    private byte[] albumCover;
+    private bool dateError = false;
+    private bool isSubmitDisabled = false;
+
+    private async Task HandleImageUpload(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+
+            if (file != null)
+            {
+                using var memoryStream = new MemoryStream();
+                await file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).CopyToAsync(memoryStream);
+                albumCover = memoryStream.ToArray();
+
+                uploadMessage = $"Successfully uploaded: {file.Name}";
+            }
+        }
+        catch(Exception exception)
+        {
+            uploadMessage = "Error uploading the image. Please try again.";
+        }
+    }
+
+    private void HandleReleaseDateChange()
+    {
+        isSubmitDisabled = !ValidateReleaseDate(newSong.ReleaseDate);
+    }
+
+    private bool ValidateReleaseDate(string date)
+    {
+        if (string.IsNullOrEmpty(date))
+        {
+            dateError = false;
+            return true;
+        }
+
+        var datePattern = @"^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])-\d{4}$";
+        var regex = new System.Text.RegularExpressions.Regex(datePattern);
+        var isValid = regex.IsMatch(date);
+
+        dateError = !isValid;
+
+        return isValid;
+    }
 
     private async Task HandleValidSubmit()
     {
-        var response = await Http.PostAsJsonAsync("api/songs", newSong);
+        if (!string.IsNullOrEmpty(newSong.ReleaseDate) && !ValidateReleaseDate(newSong.ReleaseDate))
+        {
+            return;
+        }
+        
+        var formData = new MultipartFormDataContent();
+        
+        formData.Add(new StringContent(newSong.Title), "Title");
+        formData.Add(new StringContent(newSong.Artist), "Artist");
+        formData.Add(new StringContent(newSong.Album), "Album");
+        formData.Add(new StringContent(newSong.Genre), "Genre");
+        
+        if (!string.IsNullOrEmpty(newSong.ReleaseDate))
+        {
+            formData.Add(new StringContent(newSong.ReleaseDate), "ReleaseDate");
+        }
+
+        if (albumCover != null && albumCover.Length > 0)
+        {
+            var albumCoverContent = new ByteArrayContent(albumCover);
+            albumCoverContent.Headers.ContentType = MediaTypeHeaderValue.Parse("image/jpeg");
+            // I want to make the album name similar if the album existed, would add it later on my free time.
+            string cleanedUpAlbumName = newSong.Album.Replace(" ", "_").ToLower();
+            formData.Add(albumCoverContent, "AlbumCover", $"{cleanedUpAlbumName}_cover.jpg");
+        }
+
+        var response = await Http.PostAsync("api/songs", formData);
+
         if (response.IsSuccessStatusCode)
         {
-            message = "Song added successfully!";
-            newSong = new Song(); 
+            message = "Songs added successfully!";
+            uploadMessage = null;
+            newSong = new Song();
+            albumCover = null;
         }
         else
         {
