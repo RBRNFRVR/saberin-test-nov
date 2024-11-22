@@ -1,6 +1,7 @@
 # Getting Started #
 
 This solution contains an easy to use and simple music manager.
+issues: to run i had to change alot of the functionality when it came to making it work. adding a datadbcontext factory to make sure it was functioning properly in migrations. 
 
 ## Technologies
 - Visual Studio 2022 
